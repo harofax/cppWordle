@@ -1,7 +1,7 @@
 # cppWordle -- C++ assignment
 console wordle made with cpp
 
-# Data structure for words
+## Data structure for words
 I decided to forgo memory in favour of speed, so I have two structures for the words. One is an **unordered_set** for checking if guesses are valid words,
 the other is a **vector\<string>** for grabbing a random word when you choose "play again", so we don't have to open a file every time we want to get a new word.
 
