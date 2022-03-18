@@ -1,13 +1,10 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <cstdlib>
 #include <map>
 #include <sstream>
-#include <cwchar>
-
-#define NOMINMAX
-#include <Windows.h>
+#include <vector>
+#include <unordered_set>
 
 #define FOREGROUND(color, text) "\x1B[" << static_cast<int>(color) << "m" << text << "\033[0m"
 #define BACKGROUND(color, text) "\033[3;42;" << static_cast<int>(color) << "m" << text << "\033[0m"
@@ -34,94 +31,110 @@ enum class BackgroundColor : int {
     BrightBlack = 100
 };
 
+
 constexpr int WORD_LENGTH = 5;
 
 constexpr int MAX_GUESSES = 6;
 
-bool get_random_word(const char* filename, std::string& word);
+std::unordered_set<std::string> valid_words;
+std::vector<std::string> word_list;
+
+std::string get_random_word();
+
+bool load_words(const char* filename, 
+    std::vector<std::string>& word_list, 
+    std::unordered_set<std::string>& valid_words);
 
 std::string get_guess();
 
-int parse_guess(std::string& word, std::map<char, int> word_data, std::string& guess, std::stringstream& output);
+int parse_guess(const std::string& word, std::map<char, int> word_data, const std::string& guess, std::stringstream& output);
 
-
-void init_console()
-{
-    CONSOLE_FONT_INFOEX cfi;
-    cfi.cbSize = sizeof(cfi);
-    cfi.nFont = 0;
-    cfi.dwFontSize.X = 0;
-    cfi.dwFontSize.Y = 24;
-    cfi.FontFamily = FF_DONTCARE;
-    cfi.FontWeight = FW_BOLD;
-    wcscpy_s(cfi.FaceName, L"Consolas");
-    SetCurrentConsoleFontEx(GetStdHandle(STD_OUTPUT_HANDLE), FALSE, &cfi);
-}
 
 int main()
 {
-    init_console();
-
-
-    std::string word;
-
-    get_random_word("words.txt", word);
-
-    std::map<char, int> word_data;
-
-    for (const char c : word)
+    srand(time(0));
+    if (!load_words("words.txt", word_list, valid_words)) 
     {
-        word_data[c]++;
+        std::cout << BACKGROUND(BackgroundColor::BrightRed, 
+            "COULD NOT LOAD WORD LIST. MAKE SURE A \"words.txt\" file exists where this executable resides.")
+            << std::endl;
+
+        return -1;
     }
 
-    //std::cout << FOREGROUND(ForegroundColor::BrightYellow, word) << std::endl;
+    char play_again = 'y';
 
-    std::cout << FOREGROUND(ForegroundColor::BrightYellow, "WELCOME TO CWORDLE (COOL WORDLE)\n");
-    std::cout << FOREGROUND(ForegroundColor::BrightYellow, "-----------------------------------\n");
+    do {
+        std::string word = get_random_word();
 
-    std::stringstream output;
+        std::map<char, int> word_data;
 
-    bool won = false;
-
-    int i = 0;
-
-    for (; i < MAX_GUESSES; i++)
-    {
-    std::cout << FOREGROUND(ForegroundColor::BrightCyan, "Enter a guess: \n");
-        auto guess = get_guess();
-
-        // make guess string uppercase
-        for (auto& c : guess) c = toupper(c);
-
-        const int correct = parse_guess(word, word_data, guess, output);
-
-        std::cout << output.str() << std::endl;
-
-        // empty output stream
-        output.str("");
-
-        if (correct == 5)
+        for (const char c : word)
         {
-            won = true;
-            break;
+            word_data[c]++;
         }
-    }
 
-    if ( won )
-    {
-        std::cout << FOREGROUND(ForegroundColor::BrightGreen, "YOU WON!!!\n");
-        std::cout << "It took you " << i+1 << " guesses." << std::endl;
-    }
-	else
-    {
-        std::cout << BACKGROUND(BackgroundColor::Red, "Better luck next time, bucko" << std::endl);
-        std::cout << "The word was " <<BACKGROUND(BackgroundColor::BrightBlack, word) << "." << std::endl;
-    }
+        // Uncomment to cheat vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+         std::cout << FOREGROUND(ForegroundColor::BrightYellow, word) << std::endl;
+        // Uncomment to cheat ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    
+        std::cout << FOREGROUND(ForegroundColor::BrightYellow, "WELCOME TO CWORDLE (COOL WORDLE)\n");
+        std::cout << FOREGROUND(ForegroundColor::BrightYellow, "-----------------------------------\n");
+
+        std::stringstream output;
+
+        bool won = false;
+
+        int i = 0;
+
+        for (; i < MAX_GUESSES; i++)
+        {
+            std::cout << FOREGROUND(ForegroundColor::BrightCyan, "Enter a guess: \n");
+            auto guess = get_guess();
+
+            // make guess string uppercase
+            for (auto& c : guess)
+            {
+                c = toupper(c);
+            }
+
+            const int correct = parse_guess(word, word_data, guess, output);
+
+            std::cout << output.str() << std::endl;
+
+            // empty output stream
+            output.str("");
+
+            if (correct == 5)
+            {
+                won = true;
+                break;
+            }
+        }
+
+        if (won)
+        {
+            std::cout << FOREGROUND(ForegroundColor::BrightGreen, "YOU WON!!!\n");
+            std::cout << "It took you " << i + 1 << " guesses." << std::endl;
+        }
+        else
+        {
+            std::cout << BACKGROUND(BackgroundColor::Red, "Better luck next time, bucko" ) << std::endl;
+            std::cout << "The word was " << BACKGROUND(BackgroundColor::BrightBlack, word) << "." << std::endl;
+        }
+
+        std::cout << "Play again? \n";
+        do
+        {
+            std::cout << "Please enter [y] or [n]:" << std::endl;
+            std::cin >> play_again;
+            play_again = std::tolower(play_again);
+        } while (play_again != 'y' && play_again != 'n');
+        
+    } while (std::tolower(play_again) == 'y');    
 }
 
-bool get_random_word(const char* filename, std::string& word)
+bool load_words(const char* filename, std::vector<std::string>& word_list, std::unordered_set<std::string>& valid_words) 
 {
     std::ifstream word_file(filename);
 
@@ -131,24 +144,24 @@ bool get_random_word(const char* filename, std::string& word)
         return false;
     }
 
-    srand(time(nullptr));
+    std::string current_word;
 
-    // get how many words are in the list
-    word_file.seekg(0, std::ifstream::end);
-    const int length = word_file.tellg();
-    word_file.seekg(0, std::ifstream::beg);
-
-    // we add 1 because of the eof symbol, and then another 1 because of starting at 0
-    const int num_words = length / (WORD_LENGTH + 1) + 1;
-
-    const int random_line = rand() % num_words;
-
-    word_file.seekg((WORD_LENGTH + 1) * random_line);
-
-    // put word into the word ref
-    std::getline(word_file, word);
+    while (std::getline(word_file, current_word))
+    {
+        word_list.push_back(current_word);
+        valid_words.insert(current_word);
+    }
 
     return true;
+}
+
+std::string get_random_word()
+{
+    
+
+    const int random_index = rand() % word_list.size();
+
+    return word_list[random_index];
 }
 
 void flush_cin()
@@ -163,9 +176,24 @@ std::string get_guess()
 	while (true)
 	{
         std::cin >> guess;
+
+        for (auto &c : guess)
+        {
+	        if (!std::isalpha(c))
+	        {
+                // set fail bit, so we flush and retry
+                std::cin.setstate(std::ios_base::failbit);
+                break;
+            }
+            else {
+                c = toupper(c);
+            }
+        }
+
+
         if (std::cin.fail())
         {
-            std::cout << "Invalid input\n";
+            std::cout << FOREGROUND(ForegroundColor::BrightRed, "Invalid input, please only enter characters: \n");
             flush_cin();
             continue;
         }
@@ -175,13 +203,21 @@ std::string get_guess()
             flush_cin();
             continue;
         }
+
+        if (valid_words.count(guess) == 0) {
+            std::cout << FOREGROUND(ForegroundColor::BrightRed, "Word not in word-list, try again: \n");
+            flush_cin();
+            continue;
+        }
+
+
         break;
 	}
 
     return guess;
 }
 
-int parse_guess(std::string& word, std::map<char, int> word_data, std::string& guess, std::stringstream& output)
+int parse_guess(const std::string& word, std::map<char, int> word_data, const std::string& guess, std::stringstream& output)
 {
     int correct_guesses = 0;
 
@@ -193,6 +229,8 @@ int parse_guess(std::string& word, std::map<char, int> word_data, std::string& g
         if (guess_char == word_char)
         {
             word_data[guess_char]--;
+
+
             correct_guesses++;
         }
     }
@@ -210,7 +248,7 @@ int parse_guess(std::string& word, std::map<char, int> word_data, std::string& g
         {
             output << BACKGROUND(BackgroundColor::BrightYellow, FOREGROUND(ForegroundColor::Black, guess_char));
             word_data[guess_char]--;
-            correct_guesses++;
+            
         }
         else
         {
